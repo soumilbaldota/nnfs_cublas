@@ -1,40 +1,57 @@
-#include "deviceArray.cpp"
+#include "tensor.h"
 #include <cublas_v2.h>
+#include <vector>
 #include <iostream>
+#include <memory>
 
 int main() {
-    vector<vector<double>> weights{{1,2,3}, {1,2.5,3.5}, {4,1,2.5}};
-    vector<double> input{1,2,3};
-    double bias = {3,2,1};
-    int N = input.size();
+    // Create tensor from nested vector (2D example)
+    std::vector<std::vector<float>> data2d = {
+        {1.0f, 2.0f, 3.0f},
+        {4.0f, 5.0f, 6.0f}
+    };
 
-    weights = DeviceArray()
+    // Create cuBLAS handle
     cublasHandle_t handle;
     cublasCreate(&handle);
 
-    for (int _w = 0; _w < weights.size(); _w++) {
-        double res = bias[_w];
+    // Create tensor from nested vector
+    Tensor<float> t1(data2d, handle);
+    
+    std::cout << "Shape: ";
+    for (auto dim : t1.get_shape()) {
+        std::cout << dim << " ";
+    }
+    std::cout << "\nStrides: ";
+    for (auto stride : t1.get_strides()) {
+        std::cout << stride << " ";
+    }
+    std::cout << "\nTotal size: " << t1.size() << std::endl;
+    
+    // Test flat index computation
+    std::cout << "Flat index of [1,2]: " << t1.compute_flat_index({1, 2}) << std::endl;
 
-        DeviceArray<float> d_weights(N);
-        DeviceArray<float> d_input(N);
+    // Create from flat vector with explicit shape
+    std::vector<float> flat = {1, 2, 3, 4, 5, 6};
+    Tensor<float> t2(flat, {2, 3}, handle);
 
-        cudaMemcpy(d_weights.data, weights[_w].data(),
-                N * sizeof(float), cudaMemcpyHostToDevice);
-        cudaMemcpy(d_input.data, input.data(),
-                N * sizeof(float), cudaMemcpyHostToDevice);
+    // Matrix multiplication example
+    std::vector<std::vector<float>> a = {{1, 2}, {3, 4}};
+    std::vector<std::vector<float>> b = {{5, 6}, {7, 8}};
+    
+    Tensor<float> ta(a, handle);
+    Tensor<float> tb(b, handle);
+    Tensor<float> tc = ta.matmul(tb);
 
-        float result = 0.0f;
-
-        cublasSdot(handle, N,
-                d_weights.data, 1,
-                d_input.data, 1,
-                &result);
-
-        res += result;
+    auto result = tc.to_host();
+    std::cout << "Matrix multiplication result:\n";
+    for (size_t i = 0; i < 2; ++i) {
+        for (size_t j = 0; j < 2; ++j) {
+            std::cout << result[i * 2 + j] << " ";
+        }
+        std::cout << "\n";
     }
 
     cublasDestroy(handle);
-
-
-    return res;
+    return 0;
 }
